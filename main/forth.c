@@ -12,7 +12,4 @@ register int *DSP asm("a4"); // data stack pointer
 register int *RSP asm("a5"); // return stack pointer
 register int X asm("a6"); // scratch register
 
-#define NEXT W=*IP++; asm("jx a0")
-#define PUSHD *(++DSP)=T;
-#define POPD T=*(DSP--);
 

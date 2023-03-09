@@ -1,4 +1,14 @@
 #include "forth.h"
+extern int get_ms();
+
+typedef struct task_t {
+	int wake_at_ms;
+	int *semaphore;
+	int priority;
+	struct task_t *next_task;
+	int *dsp;
+	int **rsp;
+} task_t;
 
 //registers assignement
 register int *IP asm("a2"); // instruction pointer
@@ -11,6 +21,8 @@ register int X asm("a6"); // scratch register
 int *here;
 int compiling;
 int *latest;
+task_t *first_task;
+task_t *task;
 
 char uart_wordbuffer[256];
 //char enow_wordbuffer[256];
@@ -25,7 +37,7 @@ t_read_buf uart_buf = {.pos = 0, .buf = uart_wordbuffer};
 
 
 
-#define NEXT W=*(IP++); asm("jx a0")
+#define NEXT W=*(IP++); goto *W
 #define PUSHD *(--DSP)=T
 #define POPD T=*(DSP++)
 #define S1 *DSP
@@ -217,4 +229,28 @@ void COMMA() {
 	*(here++) = T;
 	POPD;
 	NEXT;
+}
+
+void switch_context(){
+
+   task_t *next_task;
+
+   task->dsp = DSP;
+   task->rsp = RSP;
+   next_task =  task->next_task;
+   if (next_task->priority > task->priority) {
+      next_task = first_task;
+   }
+
+   while (1) {
+      if (get_ms() > next_task->wake_at_ms || (next_task->semaphore != 0 && *next_task->semaphore != 0)) {
+         task = next_task;
+         DSP = task->dsp;
+         RSP = task->rsp;
+      }
+      else {
+         next_task = next_task->next_task;
+      }
+   }
+
 }
