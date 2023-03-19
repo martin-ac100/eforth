@@ -18,9 +18,9 @@ typedef struct {
    char *c_buff;
 } io_buff_t;
 
-#define _isdigit(C) for (X=15;X>=0;--X) {if (C == digits[X]) break;};
+#define _isdigit(C) for (X=15;X>=0;--X) {if (C == digits[X]) break;}
 
-static char[] digits="0123456789ABCDEF";
+static char digits[]="0123456789ABCDEF";
 
 #define _iskey rb->c_pos < rb->c_top
 #define _readkey rb->c_buff[rb->c_pos++]
@@ -39,6 +39,9 @@ int here;
 int compiling;
 int latest;
 int base;
+int *key;
+int *emit;
+int *tell;
 
 task_t *first_task;
 task_t *task;
@@ -71,13 +74,13 @@ io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff =
    ".align 4\n"\
    label":");
 
-#define def_code_word(name,label,flags) def_word(label,name,flags); asm(".int 3f\n3:");
+#define def_code_word(name,label,flags) def_word(label,name,flags) asm(".int 3f\n3:");
 
-#define exe(word)   do {__label__ newIP;\
-                        IP = &&newIP;\
-                        NEXT;
-                        newIP:\
-                        asm(".int "words",1f\n1:")
+#define exe(words)   do {__label__ newIP;\
+                        IP = &&;\
+                        NEXT;\
+                        asm(".int "words",1f\n1:");\
+                     } while (0)
 
 void prims(int c) {
    asm(".set link,0");
@@ -91,14 +94,20 @@ void prims(int c) {
          PUSHD;
          NEXT;
 
-      def_code_word("DUP+","DUP+","0")
+      def_code_word("2DUP","2DUP","0")
+         *(DSP-1)=T;
+         *(DSP-2)=*DSP;
+         DSP = DSP -2;
+         NEXT;
+
+      def_code_word("DUP+","DUPPLUS","0")
          X = T;
          T = T + 1;
          PUSHD;
          T = X;
          NEXT;
 
-      def_code_word("DUP-","DUP-","0")
+      def_code_word("DUP-","DUPMINUS","0")
          X = T;
          T = T - 1;
          PUSHD;
@@ -116,9 +125,14 @@ void prims(int c) {
          POPD;
          NEXT;
 
+      def_code_word("2DROP","2DROP","0")
+#define _DDROP T=*(DSP+1); DSP += 2
+         _DDROP;
+         NEXT;
+
       def_code_word("OVER","OVER","0")
-         PUSHD;
-         T = S2;
+#define _over PUSHD; T = S2
+         _over;
          NEXT;
 
       def_code_word("SWAP","SWAP","0")
@@ -228,7 +242,7 @@ void prims(int c) {
          NEXT;
 
       def_code_word("@!","FETCHSTORE","0")
-         *T++ = *S1++;
+         *(int *)T++ = *(int *)S1++;
          NEXT;
       
       def_code_word("C@C!","FETCHSTOREBYTE","0")
@@ -236,12 +250,12 @@ void prims(int c) {
          NEXT;
       
       def_code_word("!++","INCSTORE","0")
-         *T += 1;
+         *(int *)T += 1;
          POPD;
          NEXT;
 
       def_code_word("!--","DECSTORE","0")
-         *T += 1;
+         *(int *)T += 1;
          POPD;
          NEXT;
 
@@ -260,19 +274,18 @@ void prims(int c) {
          NEXT;
 
       def_code_word("OVER+","OVERPLUS","0")
-         PUSHD;
-         T = S2;
+         _over;
          S2 = S2 + 1;
          NEXT;
 
       def_code_word(",","COMMA","FL_IMMEDIATE")
-         *(here++) = T;
+         *( (int *)here++) = T;
          POPD;
          NEXT;
 
       def_code_word("DOCOL","DOCOL","FL_HIDDEN")
          *(RSP--) = IP;
-         IP = (int ***)(W+1);
+         IP = (int **)(W+1);
          NEXT;
 
       def_code_word("WORD","WORD","0")
@@ -280,7 +293,9 @@ void prims(int c) {
          if ( X == 0 ) { //new word, so skip whitespaces
             while (1) {
                _key;
-               if ( T == 0 ) NEXT;
+               if ( T == 0 ) {
+                  NEXT;
+               }
                else if ( S1 > ' ') {POPD;break;}
                POPD;POPD;
             }
@@ -291,44 +306,62 @@ void prims(int c) {
             _key;
             if ( T == 0 ) NEXT;
             POPD;
-         } while ( T > ' ' )
-         T = rb->w_buff;PUSHD; //address of the word buffer
+         } while ( T > ' ' );
+         T = (int) rb->w_buff;PUSHD; //address of the word buffer
          T = rb->w_pos; //word length
          rb->w_pos = 0;
          NEXT;
             
-      def_code_word("STRCMP","STRCMP","0") // ( str_addr1 str_addr2 len -- result )
-         do {
-            T = T - 1;
-            if ( *(char *)S1[T] != *(char *)S2[T] ) {POPD;POPD;T=0;NEXT;}
-         } while ( T > 0 )
+      def_code_word("STRCMP","STRCMP","0") // ( str_addr1 len1 str_addr2 len2 -- result )
+         X = 0; //default result is false
+         if ( T == S2 ) {
+            POPD;
+            X = 1;
+            do {
+               S1 = S1 - 1;
+               if ( ((char *)T)[S1] != ((char *)S2)[S1]  ) {X=0;break;}
+            } while ( S1 > 0 );
+         }
+         else {
+            POPD;
+         }
+         
          POPD;POPD;
-         T = 1;
+         T = X;
          NEXT;
 
-      def_code_word("FIND","FIND","0")
-         X=*latest;
-         while (X != 0) {
-            if ( strcmp( (const char*)T, (const char *)(X+2)) ) break;
-            X = *X;
+      def_code_word("FIND","FIND","0") {
+         /*
+         W=&latest;
+         while (W && T) {
+            W = *(int **)W;
+            exe("2DUP");
+            PUSHD;
+            T = (int)W+2;PUSHD;
+            T = *(W+1) && 31; //len
+            exe("STRCMP");
          }
-         T = X;
-
+         DSP = DSP-2;
+         T = (int)W;
+         */
+         exe("2DUP");
+         NEXT;
+      }
       def_code_word("NUMBER","NUMBER","0") // ( addr len -- value is_valid_number )
-         T = (char *)S1 + T; // process until this address
+         T = (int)S1 + T; // process until this address
          PUSHD; //S2 = str addr, S1 = len
-         W = 1; //sign
+         W = (int *)1; //sign
          T = 0; //initial value
-         if ( *(char *)S2 == '-' ) { W = -1; (char *)S2 += 1;}
+         if ( *(char *)S2 == '-' ) { W = (int *)-1; S2 += 1;}
 
          while ( S2 < S1 ) {
             _isdigit( *(char *)S2 ); // X == [0..base-1] valid digit, X == -1 not valid digit
             if ( X == -1 ) {POPD; T=0; NEXT;}
             T = T * base;
             T = T + X;
-            (char *)S2 += 1;
+            S2 += 1;
          }
-         *(++DSP) = T; // DROP, DROP, PUSHD
+         *(++DSP) = (int)W * T; // DROP, DROP, PUSHD
          T = 1;
          NEXT;
 
@@ -347,30 +380,30 @@ void prims(int c) {
          
 
 
-      def_code_word("TICK","'","FL_IMMEDIATE")
+      def_code_word("'","TICK","FL_IMMEDIATE")
 
       
 
       def_code_word("switch_context","switch_context","0")
 
-         task_t *next_task;
          int ms = get_ms();
-
+         PUSHD;
          task->dsp = DSP;
          task->rsp = RSP;
          
          if (task->wake_at_ms < ms) task->wake_at_ms = ms;
 
-         next_task = first_task;
+         X = (int)first_task;
 
          while (1) {
-            if ( ms > next_task->wake_at_ms || (next_task->semaphore != 0 && *(next_task->semaphore != 0) ) ) {
-                task = next_task;
+            if ( ms > ((task_t *)X)->wake_at_ms || (((task_t *)X)->semaphore != 0 && ( *((task_t *)X)->semaphore != 0) ) ) {
+                task = ((task_t *)X);
                 DSP = task->dsp;
                 RSP = task->rsp;
+               POPD;
             }
             else {
-               next_task = next_task->next_task;
+               X = (int)((task_t*)X)->next_task;
             }
          }
          NEXT;

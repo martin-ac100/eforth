@@ -1,0 +1,21 @@
+ tasks                                                                
+------------ -------------- -----------------------------------------
++cell_offset description    value n                                  
+                                                                     
+0            wake_at_ms     sleep until ms? > n                      
+                            n == 0: task always on                   
+                            n == -1: task suspended                  
+                                                                     
+1            semaphore addr n == 0: no semaphore used                
+                            n > 0: if @n == 0 then wait else activate
+                                                                     
+2            priority       lower means higher priority              
+                                                                     
+3            next_task      addr of the next task                    
+                                                                     
+4            DSP            data stack pointer                       
+                                                                     
+5            RSP            return stack pointer                     
+                                                                     
+
+
