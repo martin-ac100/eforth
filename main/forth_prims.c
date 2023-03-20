@@ -74,13 +74,7 @@ io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff =
    ".align 4\n"\
    label":");
 
-#define def_code_word(name,label,flags) def_word(label,name,flags) asm(".int 3f\n3:");
-
-#define exe(words)   do {__label__ newIP;\
-                        IP = &&;\
-                        NEXT;\
-                        asm(".int "words",1f\n1:");\
-                     } while (0)
+#define def_code_word(name,label,flags) def_word(name,label,flags) asm(".int 3f\n3:");
 
 void prims(int c) {
    asm(".set link,0");
@@ -93,7 +87,7 @@ void prims(int c) {
       def_code_word("DUP","DUP","0")
          PUSHD;
          NEXT;
-
+	
       def_code_word("2DUP","2DUP","0")
          *(DSP-1)=T;
          *(DSP-2)=*DSP;
@@ -331,22 +325,20 @@ void prims(int c) {
          NEXT;
 
       def_code_word("FIND","FIND","0") {
-         /*
          W=&latest;
          while (W && T) {
             W = *(int **)W;
-            exe("2DUP");
+      //      exe("2DUP");
             PUSHD;
             T = (int)W+2;PUSHD;
             T = *(W+1) && 31; //len
-            exe("STRCMP");
+      //      exe("STRCMP");
          }
          DSP = DSP-2;
          T = (int)W;
-         */
-         exe("2DUP");
          NEXT;
       }
+
       def_code_word("NUMBER","NUMBER","0") // ( addr len -- value is_valid_number )
          T = (int)S1 + T; // process until this address
          PUSHD; //S2 = str addr, S1 = len
