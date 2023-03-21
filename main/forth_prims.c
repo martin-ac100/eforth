@@ -238,7 +238,7 @@ void prims(int c) {
             IP++;
          }
          else {
-            IP = IP + (int **) *IP;
+            IP += (int ) *IP;
          }
          NEXT;
 
