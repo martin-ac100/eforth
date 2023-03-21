@@ -75,6 +75,7 @@ io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff =
    label":");
 
 #define def_code_word(name,label,flags) def_word(name,label,flags) asm(".int 3f\n3:");
+#define def_forth_word(name,label,flags,def) def_word(name,label,flags) asm(".int DOCOL,"def",EXIT");
 
 void prims(int c) {
    asm(".set link,0");
@@ -88,32 +89,31 @@ void prims(int c) {
          PUSHD;
          NEXT;
 	
-      def_code_word("2DUP","2DUP","0")
-         *(DSP-1)=T;
-         *(DSP-2)=*DSP;
-         DSP = DSP -2;
-         NEXT;
-
-      def_code_word("DUP+","DUPPLUS","0")
-         X = T;
-         T = T + 1;
+      def_code_word("RDUP","RDUP","0")
          PUSHD;
-         T = X;
+         T = (int)*RSP;
          NEXT;
-
-      def_code_word("DUP-","DUPMINUS","0")
-         X = T;
-         T = T - 1;
-         PUSHD;
-         T = X;
-         NEXT;
-
-      def_code_word("DDUP","DDUP","0")
+	
+      def_code_word("2DUP","DDUP","0")
          *(DSP-1) = T;
          *(DSP-2) = S1;
          DSP = DSP -2;
          NEXT;
 
+      def_code_word("DUP+","DUPPLUS","0")
+         PUSHD;
+         S1 = S1 + 1;
+         NEXT;
+
+      def_code_word("OVER","OVER","0")
+#define _over PUSHD; T = S2
+         _over;
+         NEXT;
+
+      def_code_word("OVER+","OVERPLUS","0")
+         _over;
+         S2 = S2 + 1;
+         NEXT;
 
       def_code_word("DROP","DROP","0")
          POPD;
@@ -122,11 +122,6 @@ void prims(int c) {
       def_code_word("2DROP","2DROP","0")
 #define _DDROP T=*(DSP+1); DSP += 2
          _DDROP;
-         NEXT;
-
-      def_code_word("OVER","OVER","0")
-#define _over PUSHD; T = S2
-         _over;
          NEXT;
 
       def_code_word("SWAP","SWAP","0")
@@ -140,6 +135,21 @@ void prims(int c) {
          T = S2;
          S2 = S1;
          S1 = X;
+         NEXT;
+
+      def_code_word("-ROT","MINUSROT","0")
+         X = T;
+         T = S1;
+         S1 = S2;
+         S2 = X;
+         NEXT;
+
+      def_code_word("++","INC","0")
+         T = T + 1;
+         NEXT;
+
+      def_code_word("--","DEC","0")
+         T = T - 1;
          NEXT;
 
       def_code_word("+","ADD","0")
@@ -160,6 +170,22 @@ void prims(int c) {
 
       def_code_word("MOD","MOD","0")
          T = *(DSP++) % T;
+         NEXT;
+
+      def_code_word("&","AND","0")
+         T = T & *(DSP++);
+         NEXT;
+
+      def_code_word("|","OR","0")
+         T = T | *(DSP++);
+         NEXT;
+
+      def_code_word("^","XOR","0")
+         T = T ^ *(DSP++);
+         NEXT;
+
+      def_code_word("~","NOT","0")
+         T = ~T;
          NEXT;
 
       def_code_word("=","EQU","0")
@@ -212,7 +238,7 @@ void prims(int c) {
             IP++;
          }
          else {
-            IP = (int **) *IP;
+            IP = IP + (int **) *IP;
          }
          NEXT;
 
@@ -260,16 +286,6 @@ void prims(int c) {
       def_code_word("C!","STOREBYTE","0")
          *(char *)T = (char)(*DSP++);
          POPD;
-         NEXT;
-
-      def_code_word("DUP+","DUPPLUS","0")
-         PUSHD;
-         S1 = S1 + 1;
-         NEXT;
-
-      def_code_word("OVER+","OVERPLUS","0")
-         _over;
-         S2 = S2 + 1;
          NEXT;
 
       def_code_word(",","COMMA","FL_IMMEDIATE")
@@ -324,20 +340,13 @@ void prims(int c) {
          T = X;
          NEXT;
 
-      def_code_word("FIND","FIND","0") {
-         W=&latest;
-         while (W && T) {
-            W = *(int **)W;
-      //      exe("2DUP");
-            PUSHD;
-            T = (int)W+2;PUSHD;
-            T = *(W+1) && 31; //len
-      //      exe("STRCMP");
-         }
-         DSP = DSP-2;
-         T = (int)W;
-         NEXT;
-      }
+      def_forth_word("WCMP","WCMP","FL_HIDDEN","\
+         DUPPLUS, DROP, DUPPLUS, LIT, 31, AND, STRCMP");
+
+      def_forth_word("FIND","FIND","0","\
+         LIT, &latest,\
+         FETCH, DUP, JZ, 9, TOR, DDUP, RDUP, WCMP, FROMR, SWAP, JZ, 11,\
+         MINUSROT, DDROP");
 
       def_code_word("NUMBER","NUMBER","0") // ( addr len -- value is_valid_number )
          T = (int)S1 + T; // process until this address
@@ -369,6 +378,7 @@ void prims(int c) {
          IP = *(int ***)tell;
          NEXT;
 
+	def_forth_word("TEST","TEST","0","DUP,PLUS,OVER");
          
 
 
