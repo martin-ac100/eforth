@@ -1,5 +1,14 @@
 #include "forth.h"
+
 extern int get_ms();
+
+//registers assignement
+register int **IP asm("a2"); // instruction pointer
+register int *W asm("a0"); // actual word
+register int T asm("a3"); // top of data stack = S0
+register int *DSP asm("a4"); // data stack pointer
+register int ***RSP asm("a5"); // return stack pointer
+register int X asm("a6"); // scratch register
 
 typedef struct task_t {
    int wake_at_ms;
@@ -26,14 +35,6 @@ static char digits[]="0123456789ABCDEF";
 #define _readkey rb->c_buff[rb->c_pos++]
 #define _key PUSHD;T=0;if (_iskey) {T=_readkey;PUSHD;T=1;} else PUSHD; if (!_iskey) {rb->c_pos = 0; rb->c_top = 0;}
       
-
-//registers assignement
-register int **IP asm("a2"); // instruction pointer
-register int *W asm("a0"); // actual word
-register int T asm("a3"); // top of data stack = S0
-register int *DSP asm("a4"); // data stack pointer
-register int ***RSP asm("a5"); // return stack pointer
-register int X asm("a6"); // scratch register
 
 int here;
 int compiling;
@@ -76,6 +77,7 @@ io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff =
 
 #define def_code_word(name,label,flags) def_word(name,label,flags) asm(".int 3f\n3:");
 #define def_forth_word(name,label,flags,def) def_word(name,label,flags) asm(".int DOCOL,"def",EXIT");
+#define _JZ(label) "JZ, "label" - ."
 
 void prims(int c) {
    asm(".set link,0");
@@ -119,7 +121,7 @@ void prims(int c) {
          POPD;
          NEXT;
 
-      def_code_word("2DROP","2DROP","0")
+      def_code_word("2DROP","DDROP","0")
 #define _DDROP T=*(DSP+1); DSP += 2
          _DDROP;
          NEXT;
@@ -341,12 +343,12 @@ void prims(int c) {
          NEXT;
 
       def_forth_word("WCMP","WCMP","FL_HIDDEN","\
-         DUPPLUS, DROP, DUPPLUS, LIT, 31, AND, STRCMP");
+         INC, DUPPLUS, LIT, 31, AND, STRCMP");
 
       def_forth_word("FIND","FIND","0","\
-         LIT, &latest,\
-         FETCH, DUP, JZ, 9, TOR, DDUP, RDUP, WCMP, FROMR, SWAP, JZ, 11,\
-         MINUSROT, DDROP");
+         LIT, latest\n\
+         1: .int FETCH, DUP, "_JZ("2f")", TOR, DDUP, RDUP, WCMP, FROMR, SWAP, "_JZ("1b")"\n\
+         2: .int MINUSROT, DDROP");
 
       def_code_word("NUMBER","NUMBER","0") // ( addr len -- value is_valid_number )
          T = (int)S1 + T; // process until this address
