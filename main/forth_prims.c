@@ -1,40 +1,18 @@
 #include "forth.h"
+#include "forth_prims.h"
 
 extern int get_ms();
-
-//registers assignement
-register int **IP asm("a2"); // instruction pointer
-register int *W asm("a0"); // actual word
-register int T asm("a3"); // top of data stack = S0
-register int *DSP asm("a4"); // data stack pointer
-register int ***RSP asm("a5"); // return stack pointer
-register int X asm("a6"); // scratch register
-
-typedef struct task_t {
-   int wake_at_ms;
-   int *semaphore;
-   int priority;
-   struct task_t *next_task;
-   int *dsp;
-   int ***rsp;
-} task_t;
-
-typedef struct {
-   int c_pos;
-   int c_top;
-   int w_pos;
-   char *w_buff;
-   char *c_buff;
-} io_buff_t;
 
 #define _isdigit(C) for (X=15;X>=0;--X) {if (C == digits[X]) break;}
 
 static char digits[]="0123456789ABCDEF";
 
-#define _iskey rb->c_pos < rb->c_top
+#define _iskey (rb->c_pos < rb->c_top)
 #define _readkey rb->c_buff[rb->c_pos++]
-#define _key PUSHD;T=0;if (_iskey) {T=_readkey;PUSHD;T=1;} else PUSHD; if (!_iskey) {rb->c_pos = 0; rb->c_top = 0;}
+#define _key do { PUSHD;T=0;if (_iskey) {T=_readkey;PUSHD;T=1;} else PUSHD; if (!_iskey) {rb->c_pos = 0; rb->c_top = 0;} } while (0)
       
+const int FL_IMMEDIATE = 32;
+const int FL_HIDDEN = 64;
 
 int here;
 int compiling;
@@ -56,16 +34,9 @@ char uart_wb[32];
 
 io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff = uart_wb, .c_buff = uart_cb};
 
-
-
-#define NEXT W=*(IP++); goto **W
-#define PUSHD *(--DSP)=T
-#define POPD T=*(DSP++)
-#define S1 *DSP
-#define S2 *(DSP+1)
-
 #define def_word(name,label,flags) case __COUNTER__: \
-   asm(".global "label"\n"\
+   asm("\n"\
+   ".global "label"\n"\
    "link_"label":\n"\
    ".int link,2f-1f+"flags"\n"\
    ".set link,link_"label"\n"\
@@ -75,16 +46,19 @@ io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff =
    ".align 4\n"\
    label":");
 
-#define def_code_word(name,label,flags) def_word(name,label,flags) asm(".int 3f\n3:");
-#define def_forth_word(name,label,flags,def) def_word(name,label,flags) asm(".int DOCOL,"def",EXIT");
+#define def_code_word(name,label,flags) def_word(name,label,flags);
+#define def_forth_word(name,label,flags,def) def_word(name,label,flags) do {__label__ not_eliminate; asm goto(""::::not_eliminate); _DOCOL; not_eliminate: asm (".align 4\n.int "def",EXIT"); } while (0);
 #define _JZ(label) "JZ, "label" - ."
 
 void prims(int c) {
    asm(".set link,0");
    switch (c) {
 
+      def_code_word("DOCOL","DOCOL","0")
+         _DOCOL;
+
       def_code_word("EXIT","EXIT","0")
-         IP = *RSP++;
+         IP = (int **) *RSP++;
          NEXT;
 
       def_code_word("DUP","DUP","0")
@@ -240,12 +214,13 @@ void prims(int c) {
             IP++;
          }
          else {
-            IP += (int ) *IP;
+            IP = (int)IP + (int ) *IP;
          }
+         POPD;
          NEXT;
 
       def_code_word(">R","TOR","0")
-         *(--RSP) = (int **)T;
+         *(--RSP) = (int *)T;
          POPD;
          NEXT;
 
@@ -295,11 +270,6 @@ void prims(int c) {
          POPD;
          NEXT;
 
-      def_code_word("DOCOL","DOCOL","FL_HIDDEN")
-         *(RSP--) = IP;
-         IP = (int **)(W+1);
-         NEXT;
-
       def_code_word("WORD","WORD","0")
          X = rb->w_pos;
          if ( X == 0 ) { //new word, so skip whitespaces
@@ -344,6 +314,7 @@ void prims(int c) {
 
       def_forth_word("WCMP","WCMP","FL_HIDDEN","\
          INC, DUPPLUS, LIT, 31, AND, STRCMP");
+      asm(".int INC,DUPPLUS");
 
       def_forth_word("FIND","FIND","0","\
          LIT, latest\n\
@@ -380,12 +351,12 @@ void prims(int c) {
          IP = *(int ***)tell;
          NEXT;
 
-	def_forth_word("TEST","TEST","0","DUP,PLUS,OVER");
-         
-
-
       def_code_word("'","TICK","FL_IMMEDIATE")
 
+
+      def_forth_word("TST","TST","FL_HIDDEN","\
+         LIT,0\n\
+         1: .int INC,LIT,2,MUL,LIT,0,"_JZ("1b"));
       
 
       def_code_word("switch_context","switch_context","0")
@@ -415,3 +386,4 @@ void prims(int c) {
 
    }
 }
+
