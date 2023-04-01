@@ -49,7 +49,7 @@ io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff =
    label":");
 
 #define def_code_word(name,label,flags) def_word(name,label,flags);
-#define def_forth_word(name,label,flags,def) def_word(name,label,flags) do {__label__ not_eliminate; asm goto(""::::not_eliminate); _DOCOL; not_eliminate: asm (".int "def",EXIT"); } while (0);
+#define def_forth_word(name,label,flags,def) def_word(name,label,flags) do {__label__ not_eliminate; asm goto(""::::not_eliminate); _DOCOL; not_eliminate: asm (".int "def"\n.int EXIT"); } while (0);
 #define _JZ(label) "JZ, "label" - ."
 
 void prims(int c) {
@@ -370,9 +370,9 @@ void prims(int c) {
          CELL, ADD, FETCH, LIT, 31, AND, INC, ADD, ALIGN4");
          
       def_forth_word("'","TICK","FL_IMMEDIATE","\
-            WORD, FIND, DUP, "_JZ("1f")\
-            ", >XT\n\
-            1:");
+         WORD, FIND, DUP, "_JZ("1f")" , \
+         XT\n\
+         1:");
 
       def_code_word("[","LBRAC","FL_IMMEDIATE")
          compiling=0;
