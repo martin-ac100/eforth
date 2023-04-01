@@ -14,9 +14,9 @@ static char digits[]="0123456789ABCDEF";
 const int FL_IMMEDIATE = 32;
 const int FL_HIDDEN = 64;
 
-int here;
+int *here;
 int compiling;
-int latest;
+int *latest;
 int base;
 int *key;
 int *emit;
@@ -37,8 +37,10 @@ io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff =
 #define def_word(name,label,flags) case __COUNTER__: \
    asm("\n"\
    ".global "label"\n"\
+   ".align 4\n"\
    "link_"label":\n"\
-   ".int link,2f-1f+"flags"\n"\
+   ".int link\n"\
+   ".int 2f-1f+"flags"\n"\
    ".set link,link_"label"\n"\
    "1:\n"\
    ".asciz \""name"\"\n"\
@@ -47,7 +49,7 @@ io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff =
    label":");
 
 #define def_code_word(name,label,flags) def_word(name,label,flags);
-#define def_forth_word(name,label,flags,def) def_word(name,label,flags) do {__label__ not_eliminate; asm goto(""::::not_eliminate); _DOCOL; not_eliminate: asm (".align 4\n.int "def",EXIT"); } while (0);
+#define def_forth_word(name,label,flags,def) def_word(name,label,flags) do {__label__ not_eliminate; asm goto(""::::not_eliminate); _DOCOL; not_eliminate: asm (".int "def",EXIT"); } while (0);
 #define _JZ(label) "JZ, "label" - ."
 
 void prims(int c) {
@@ -56,6 +58,7 @@ void prims(int c) {
 
       def_code_word("DOCOL","DOCOL","0")
          _DOCOL;
+         break;
 
       def_code_word("EXIT","EXIT","0")
          IP = (int **) *RSP++;
@@ -209,6 +212,10 @@ void prims(int c) {
          T = (int)*(IP++);
          NEXT;
 
+      def_code_word("EXE","EXE","0");
+         IP=(int **) *(IP+1);
+         NEXT;
+
       def_code_word("JZ","JZ","0")
          if (T) {
             IP++;
@@ -268,6 +275,11 @@ void prims(int c) {
       def_code_word(",","COMMA","FL_IMMEDIATE")
          *( (int *)here++) = T;
          POPD;
+         NEXT;
+      
+      def_code_word("CELL","CELL","0");
+         PUSHD;
+         T = sizeof(int);
          NEXT;
 
       def_code_word("WORD","WORD","0")
@@ -351,13 +363,53 @@ void prims(int c) {
          IP = *(int ***)tell;
          NEXT;
 
-      def_code_word("'","TICK","FL_IMMEDIATE")
+      def_forth_word("ALIGN4","ALIGN4","0","\
+         LIT, 3, ADD, 4, NOT, AND");
 
+      def_forth_word(">XT","XT","0","\
+         CELL, ADD, FETCH, LIT, 31, AND, INC, ADD, ALIGN4");
+         
+      def_forth_word("'","TICK","FL_IMMEDIATE","\
+            WORD, FIND, DUP, "_JZ("1f")\
+            ", >XT\n\
+            1:");
+
+      def_code_word("[","LBRAC","FL_IMMEDIATE")
+         compiling=0;
+         NEXT;
+
+      def_code_word("]","RBRAC","FL_IMMEDIATE")
+         compiling=1;
+         NEXT;
+
+      def_code_word("CCOPY","CCOPY","0")
+         for (; T > 0; T--) *(char *)S1++ = *(char  *)S2++;
+         DSP +=2;
+         POPD;
+         NEXT;
+
+      def_forth_word("CREATE","CREATE","0","\
+         HERE, FETCH, LATEST, FETCH, COMMA, LATEST, STORE, \
+         WORD, DUP, COMMA, \
+         SWAP, OVER, LATEST, FETCH, SWAP, CCOPY, \
+         HERE, FETCH, ADD, ALIGN4, \
+         HERE, STORE");
+         
+
+      def_forth_word(":","COLON","0","\
+         WORD, CREATE, LIT, DOCOL, COMMA, \
+         LATEST, FETCH, HIDDEN, \
+         RBRAC, \
+         EXIT");
+
+      def_forth_word(";","SEMICOLON","FL_IMMEDIATE","\
+         LIT, EXIT, COMMA, \
+         LATEST, FETCH, HIDDEN, \
+         LBRAC");
 
       def_forth_word("TST","TST","FL_HIDDEN","\
          LIT,0\n\
          1: .int INC,LIT,2,MUL,LIT,0,"_JZ("1b"));
-      
 
       def_code_word("switch_context","switch_context","0")
 

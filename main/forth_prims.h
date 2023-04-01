@@ -1,7 +1,7 @@
 
 //registers assignement
 register int **IP asm("a2"); // instruction pointer
-register int *W asm("a8"); // actual word
+register int *W asm("a7"); // actual word
 register int T asm("a3"); // top of data stack = S0
 register int *DSP asm("a4"); // data stack pointer
 register int **RSP asm("a5"); // return stack pointer
@@ -24,11 +24,16 @@ typedef struct {
    char *c_buff;
 } io_buff_t;
 
-#define docol_len 20
+
+#include "docol.h"
 #define _DOCOL do {\
+         __label__ not_eliminate;\
+         asm goto (""::::not_eliminate);\
          *(--RSP) = (int *)IP;\
-         IP = (int **)( (int)W + docol_len) ;\
+         IP = (int **)( (int)W + docol_len);\
          NEXT;\
+      not_eliminate:\
+         asm(".align 4");\
          } while (0)
 
 #define NEXT do { W = *IP++; goto *W; } while (0)
