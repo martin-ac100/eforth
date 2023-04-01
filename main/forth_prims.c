@@ -221,7 +221,7 @@ void prims(int c) {
             IP++;
          }
          else {
-            IP = (int)IP + (int ) *IP;
+            IP = (int **) ( (int)IP + (int ) *IP );
          }
          POPD;
          NEXT;
@@ -383,7 +383,10 @@ void prims(int c) {
          NEXT;
 
       def_code_word("CCOPY","CCOPY","0")
-         for (; T > 0; T--) *(char *)S1++ = *(char  *)S2++;
+         for (; T > 0; T--) {
+            *(char *)S1++ = *(char  *)S2;
+            S2 = (int) ( (char *)S2 + 1);
+         }
          DSP +=2;
          POPD;
          NEXT;
