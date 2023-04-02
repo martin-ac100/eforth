@@ -49,8 +49,9 @@ io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff =
    label":");
 
 #define def_code_word(name,label,flags) def_word(name,label,flags);
-#define def_forth_word(name,label,flags,def) def_word(name,label,flags) do {__label__ not_eliminate; asm goto(""::::not_eliminate); _DOCOL; not_eliminate: asm (".int "def"\n.int EXIT"); } while (0);
+#define def_forth_word(name,label,flags,def) def_word(name,label,flags) do {__label__ not_eliminate; asm goto(""::::not_eliminate); _DOCOL; not_eliminate: asm (def"\n.int EXIT"); } while (0);
 #define _JZ(label) "JZ, "label" - ."
+#define _JMP(label) "JMP, "label" - ."
 
 void prims(int c) {
    asm(".set link,0");
@@ -213,7 +214,13 @@ void prims(int c) {
          NEXT;
 
       def_code_word("EXE","EXE","0");
-         IP=(int **) *(IP+1);
+         W=(int **) T;
+         POPD;
+         IP++;
+         goto *W;
+
+      def_code_word("JMP","JMP","0")
+         IP = (int **) ( (int)IP + (int ) *IP );
          NEXT;
 
       def_code_word("JZ","JZ","0")
@@ -282,6 +289,7 @@ void prims(int c) {
          T = sizeof(int);
          NEXT;
 
+      // WORD read new word from readbuffer ( -- addr len )
       def_code_word("WORD","WORD","0")
          X = rb->w_pos;
          if ( X == 0 ) { //new word, so skip whitespaces
@@ -305,8 +313,9 @@ void prims(int c) {
          T = rb->w_pos; //word length
          rb->w_pos = 0;
          NEXT;
-            
-      def_code_word("STRCMP","STRCMP","0") // ( str_addr1 len1 str_addr2 len2 -- result )
+
+      // STRCMP compare strings ( str_addr1 len1 str_addr2 len2 -- result )     
+      def_code_word("STRCMP","STRCMP","0")
          X = 0; //default result is false
          if ( T == S2 ) {
             POPD;
@@ -324,16 +333,18 @@ void prims(int c) {
          T = X;
          NEXT;
 
+      // WCMP compare string with dictionary item ( str_addr len dict_addr -- result ) 
       def_forth_word("WCMP","WCMP","FL_HIDDEN","\
-         INC, DUPPLUS, LIT, 31, AND, STRCMP");
-      asm(".int INC,DUPPLUS");
+         .int INC, DUPPLUS, LIT, 31, AND, STRCMP");
 
+      // FIND ( str_addr len -- dict_addr )
       def_forth_word("FIND","FIND","0","\
-         LIT, latest\n\
+         .int LIT, latest\n\
          1: .int FETCH, DUP, "_JZ("2f")", TOR, DDUP, RDUP, WCMP, FROMR, SWAP, "_JZ("1b")"\n\
          2: .int MINUSROT, DDROP");
 
-      def_code_word("NUMBER","NUMBER","0") // ( addr len -- value is_valid_number )
+      // NUMBER ( addr len -- value is_valid_number )
+      def_code_word("NUMBER","NUMBER","0")
          T = (int)S1 + T; // process until this address
          PUSHD; //S2 = str addr, S1 = len
          W = (int *)1; //sign
@@ -350,6 +361,17 @@ void prims(int c) {
          *(++DSP) = (int)W * T; // DROP, DROP, PUSHD
          T = 1;
          NEXT;
+
+      def_forth_word("INTERPRET","INTERPRET","0","\
+         1: .int WORD, DUP, "_JZ("1b")",\
+         DDUP, FIND, DUP, "_JZ("3f")",\
+          COMPILING, FETCH, "_JZ("2f")", DUP, XT, SWAP, "FL_IMMEDIATE", AND"_JZ("4f")"\n\
+         2: .int EXE,"_JMP("1b")"\n\
+         3: .int DROP, NUMBER, "_JZ("6f")",\
+          COMPILING, FETCH, "_JZ("5f")", LIT, LIT, COMMA, \
+         4: .int COMMA\n\
+         5: .int "_JMP("1b")"\n\
+         6: .int NOT_A_WORD");
 
       def_code_word("KEY","KEY","0")
          IP = *(int ***)key;
