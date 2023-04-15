@@ -1,7 +1,9 @@
 #include "forth.h"
 #include "forth_prims.h"
+#include "registers.h"
 
 extern int get_ms();
+extern int uart_write(const void *src, int size);
 
 #define _isdigit(C) for (X=15;X>=0;--X) {if (C == digits[X]) break;}
 
@@ -32,7 +34,7 @@ char uart_wb[32];
 //char enow_rb[256];
 //char enow_wb[32];
 
-io_buff_t uart_rb = {.c_pos = 0, .c_top = sizeof(uart_rb), .w_pos = 0, .w_buff = uart_wb, .c_buff = uart_cb};
+io_buff_t uart_fth = {.c_pos = 0, .c_top = 0, .c_size = sizeof(uart_cb), .w_pos = 0, .w_buff = uart_wb, .c_buff = uart_cb};
 
 #define def_word(name,label,flags) case __COUNTER__: \
    asm("\n"\
@@ -214,7 +216,7 @@ void prims(int c) {
          NEXT;
 
       def_code_word("EXE","EXE","0");
-         W=(int **) T;
+         W=(int *) T;
          POPD;
          IP++;
          goto *W;
@@ -365,10 +367,10 @@ void prims(int c) {
       def_forth_word("INTERPRET","INTERPRET","0","\
          1: .int WORD, DUP, "_JZ("1b")",\
          DDUP, FIND, DUP, "_JZ("3f")",\
-          COMPILING, FETCH, "_JZ("2f")", DUP, XT, SWAP, "FL_IMMEDIATE", AND"_JZ("4f")"\n\
+          COMPILING, FETCH, "_JZ("2f")", DUP, XT, SWAP, LIT, FL_IMMEDIATE, AND, "_JZ("4f")"\n\
          2: .int EXE,"_JMP("1b")"\n\
          3: .int DROP, NUMBER, "_JZ("6f")",\
-          COMPILING, FETCH, "_JZ("5f")", LIT, LIT, COMMA, \
+          COMPILING, FETCH, "_JZ("5f")", LIT, LIT, COMMA\n\
          4: .int COMMA\n\
          5: .int "_JMP("1b")"\n\
          6: .int NOT_A_WORD");
@@ -378,21 +380,24 @@ void prims(int c) {
          NEXT;
 
       def_code_word("EMIT","EMIT","0")
-         IP = *(int ***)emit;
+         T = uart_write( (const void *)T, 1);        
+         //IP = *(int ***)emit;
          NEXT;
 
       def_code_word("TELL","TELL","0");
-         IP = *(int ***)tell;
+         T = uart_write( (const void *)S1, (int)T);        
+         DSP++;
+         //IP = *(int ***)tell;
          NEXT;
 
       def_forth_word("ALIGN4","ALIGN4","0","\
-         LIT, 3, ADD, 4, NOT, AND");
+         .int LIT, 3, ADD, 4, NOT, AND");
 
       def_forth_word(">XT","XT","0","\
-         CELL, ADD, FETCH, LIT, 31, AND, INC, ADD, ALIGN4");
+         .int CELL, ADD, FETCH, LIT, 31, AND, INC, ADD, ALIGN4");
          
       def_forth_word("'","TICK","FL_IMMEDIATE","\
-         WORD, FIND, DUP, "_JZ("1f")" , \
+         .int WORD, FIND, DUP, "_JZ("1f")" , \
          XT\n\
          1:");
 
@@ -406,7 +411,8 @@ void prims(int c) {
 
       def_code_word("CCOPY","CCOPY","0")
          for (; T > 0; T--) {
-            *(char *)S1++ = *(char  *)S2;
+            *(char *)S1 = *(char  *)S2;
+            S1++;
             S2 = (int) ( (char *)S2 + 1);
          }
          DSP +=2;
@@ -414,26 +420,26 @@ void prims(int c) {
          NEXT;
 
       def_forth_word("CREATE","CREATE","0","\
-         HERE, FETCH, LATEST, FETCH, COMMA, LATEST, STORE, \
+         .int here, FETCH, LATEST, FETCH, COMMA, LATEST, STORE, \
          WORD, DUP, COMMA, \
          SWAP, OVER, LATEST, FETCH, SWAP, CCOPY, \
-         HERE, FETCH, ADD, ALIGN4, \
-         HERE, STORE");
+         here, FETCH, ADD, ALIGN4, \
+         here, STORE");
          
 
       def_forth_word(":","COLON","0","\
-         WORD, CREATE, LIT, DOCOL, COMMA, \
+         .int WORD, CREATE, LIT, DOCOL, COMMA, \
          LATEST, FETCH, HIDDEN, \
          RBRAC, \
          EXIT");
 
       def_forth_word(";","SEMICOLON","FL_IMMEDIATE","\
-         LIT, EXIT, COMMA, \
+         .int LIT, EXIT, COMMA, \
          LATEST, FETCH, HIDDEN, \
          LBRAC");
 
       def_forth_word("TST","TST","FL_HIDDEN","\
-         LIT,0\n\
+         .int LIT,0\n\
          1: .int INC,LIT,2,MUL,LIT,0,"_JZ("1b"));
 
       def_code_word("switch_context","switch_context","0")

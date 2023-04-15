@@ -1,4 +1,6 @@
 #include "forth_prims.h"
+#include "registers.h"
+#include "docol.h"
 
 void docol(int i) {
    switch (i) {
