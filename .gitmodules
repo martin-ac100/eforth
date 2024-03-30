@@ -1,0 +1,3 @@
+[submodule "wlfs"]
+	path = wlfs
+	url = git@github.com:martin-ac100/wlfs
