@@ -7,6 +7,8 @@ const uart_port_t uart_num = UART_NUM_0;
 TaskHandle_t xReadHandle = NULL;
 TaskHandle_t xReplHandle = NULL;
 
+
+
 typedef struct forth_read_buffer_t {
 	char start[128];
 	char *cursor;
@@ -38,18 +40,15 @@ esp_err_t uart_start() {
 void uart_read_task(void * pvParameters) {
 	uint8_t data[256];
 	int data_len = 0;
-	TickType_t xTicksToWait = 1000;
 	while (1) {
 		while (uart_read_buffer.chars_left) {
-			puts("read_task blocked\n");
-			ulTaskNotifyTake(pdTRUE, xTicksToWait);
+			vTaskDelay(200 / portTICK_PERIOD_MS);
 		}
 		data_len = uart_read_bytes(uart_num, &data, uart_read_buffer.size, 100);
 		if (data_len) {
 			memcpy(uart_read_buffer.start, data, data_len);
 			uart_read_buffer.cursor = uart_read_buffer.start;
 			uart_read_buffer.chars_left = data_len;
-			xTaskNotifyGive(xReplHandle);
 		}
 	}
 }
@@ -57,11 +56,8 @@ void uart_read_task(void * pvParameters) {
 void uart_repl_task(void * pvParameters) {
 	const char *color_green = "\033[32m";
 	const char *color_default = "\033[39m";
-	TickType_t xTicksToWait = 1000;
 
 	while (1) {
-		puts("repl_task blocked\n");
-		ulTaskNotifyTake(pdTRUE, xTicksToWait);
 		while (uart_read_buffer.chars_left) {
 			uart_write_bytes(uart_num, color_green,5);
 			uart_write_bytes(uart_num, uart_read_buffer.cursor,1);
@@ -70,7 +66,7 @@ void uart_repl_task(void * pvParameters) {
 			uart_read_buffer.chars_left--;
 			vTaskDelay(500 / portTICK_PERIOD_MS);
 		}
-		xTaskNotifyGive(xReadHandle);
+		vTaskDelay(200 / portTICK_PERIOD_MS);
 	}
 }
 
