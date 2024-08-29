@@ -7,6 +7,7 @@ const uart_port_t uart_num = UART_NUM_0;
 TaskHandle_t xReadHandle = NULL;
 TaskHandle_t xReplHandle = NULL;
 
+QueueHandle_t uart_queue;
 
 
 typedef struct forth_read_buffer_t {
@@ -32,7 +33,6 @@ esp_err_t uart_start() {
 	ESP_ERROR_CHECK(uart_param_config(uart_num, &uart_config));
 	// Setup UART buffered IO with event queue
 	const int uart_buffer_size = (1024 * 2);
-	QueueHandle_t uart_queue;
 	// Install UART driver using an event queue here
 	return uart_driver_install(UART_NUM_0, uart_buffer_size, uart_buffer_size, 10, &uart_queue, 0);
 }
@@ -40,15 +40,18 @@ esp_err_t uart_start() {
 void uart_read_task(void * pvParameters) {
 	uint8_t data[256];
 	int data_len = 0;
-	while (1) {
-		while (uart_read_buffer.chars_left) {
-			vTaskDelay(200 / portTICK_PERIOD_MS);
-		}
-		data_len = uart_read_bytes(uart_num, &data, uart_read_buffer.size, 100);
-		if (data_len) {
-			memcpy(uart_read_buffer.start, data, data_len);
-			uart_read_buffer.cursor = uart_read_buffer.start;
-			uart_read_buffer.chars_left = data_len;
+	uart_event_t event;
+	for (;;) {
+		if (xQueueReceive(uart_queue, (void *)&event, (TickType_t)portMAX_DELAY) && event.type == UART_DATA ) {
+			while (uart_read_buffer.chars_left) {
+				vTaskDelay(200 / portTICK_PERIOD_MS);
+			}
+			data_len = uart_read_bytes(uart_num, &data, uart_read_buffer.size, 100);
+			if (data_len) {
+				memcpy(uart_read_buffer.start, data, data_len);
+				uart_read_buffer.cursor = uart_read_buffer.start;
+				uart_read_buffer.chars_left = data_len;
+			}
 		}
 	}
 }
