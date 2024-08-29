@@ -7,15 +7,11 @@ typedef struct task_t {
    int **rsp;
 } task_t;
 
-typedef struct {
-   int c_pos;
-   int c_top;
-   int c_size;
-   int w_pos;
-   char *w_buff;
-   char *c_buff;
-} io_buff_t;
-
+typedef struct forth_input_buffer_t {
+        char start[256];
+        int unread;
+        char *write_pos;
+} forth_input_buffer_t;
 
 #include "docol.h"
 #define _DOCOL do {\

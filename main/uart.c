@@ -2,6 +2,7 @@
 #include <string.h>
 #include "driver/uart.h"
 #include "freertos/task.h"
+#include "forth_prims.h"
 
 const uart_port_t uart_num = UART_NUM_0;
 TaskHandle_t xReadHandle = NULL;
@@ -10,14 +11,9 @@ TaskHandle_t xReplHandle = NULL;
 QueueHandle_t uart_queue;
 
 
-typedef struct forth_read_buffer_t {
-	char start[128];
-	char *cursor;
-	uint8_t chars_left;
-	uint8_t size;
-} forth_read_buffer_t;
 
-forth_read_buffer_t uart_read_buffer = { .chars_left = 0, .size = 128 };
+forth_input_buffer_t uart_input_buffer = { .unread = 0, .write_pos = 0 };
+#define forth_buffer_size sizeof(uart_input_buffer.start)
 
 
 esp_err_t uart_start() {
@@ -43,14 +39,15 @@ void uart_read_task(void * pvParameters) {
 	uart_event_t event;
 	for (;;) {
 		if (xQueueReceive(uart_queue, (void *)&event, (TickType_t)portMAX_DELAY) && event.type == UART_DATA ) {
-			while (uart_read_buffer.chars_left) {
-				vTaskDelay(200 / portTICK_PERIOD_MS);
+			while (uart_input_buffer.unread ) {
+				vTaskDelay( 10 / portTICK_PERIOD_MS);
+
 			}
-			data_len = uart_read_bytes(uart_num, &data, uart_read_buffer.size, 100);
+			data_len = uart_read_bytes(uart_num, &data, forth_buffer_size, 10 / portTICK_PERIOD_MS);
 			if (data_len) {
-				memcpy(uart_read_buffer.start, data, data_len);
-				uart_read_buffer.cursor = uart_read_buffer.start;
-				uart_read_buffer.chars_left = data_len;
+				memcpy(uart_input_buffer.start, data, data_len);
+				uart_input_buffer.write_pos = uart_input_buffer.start + data_len;
+				uart_input_buffer.unread = data_len;
 			}
 		}
 	}
@@ -61,12 +58,10 @@ void uart_repl_task(void * pvParameters) {
 	const char *color_default = "\033[39m";
 
 	while (1) {
-		while (uart_read_buffer.chars_left) {
+		while (uart_input_buffer.unread) {
 			uart_write_bytes(uart_num, color_green,5);
-			uart_write_bytes(uart_num, uart_read_buffer.cursor,1);
+			uart_write_bytes(uart_num, uart_input_buffer.write_pos - uart_input_buffer.unread--, 1);
 			uart_write_bytes(uart_num, color_default,5);
-			uart_read_buffer.cursor++;
-			uart_read_buffer.chars_left--;
 			vTaskDelay(500 / portTICK_PERIOD_MS);
 		}
 		vTaskDelay(200 / portTICK_PERIOD_MS);
