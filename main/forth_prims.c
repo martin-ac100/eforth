@@ -9,12 +9,13 @@ extern int uart_write(const void *src, int size);
 
 static char digits[]="0123456789ABCDEF";
 
-#define _iskey (rb->c_pos < rb->c_top)
-#define _readkey rb->c_buff[rb->c_pos++]
-#define _key do { PUSHD;T=0;if (_iskey) {T=_readkey;PUSHD;T=1;} else PUSHD; if (!_iskey) {rb->c_pos = 0; rb->c_top = 0;} } while (0)
+#define _iskey (input_buffer->unread)
+#define _readkey *(char *)(input_buffer->read_pos++)
+//_key ( -- key is_key )
+#define _key do { PUSHD;T=0;if (_iskey) {T=_readkey;PUSHD;T=1;} else PUSHD; } while (0)
       
-const int FL_IMMEDIATE = 32;
-const int FL_HIDDEN = 64;
+asm(".equ FL_IMMEDIATE, 32");
+asm(".equ FL_HIDDEN, 64");
 
 int *here;
 int compiling;
@@ -27,14 +28,10 @@ int *tell;
 task_t *first_task;
 task_t *task;
 
-io_buff_t *rb;
-
-char uart_cb[256];
-char uart_wb[32];
-//char enow_rb[256];
-//char enow_wb[32];
-
-io_buff_t uart_fth = {.c_pos = 0, .c_top = 0, .c_size = sizeof(uart_cb), .w_pos = 0, .w_buff = uart_wb, .c_buff = uart_cb};
+extern forth_input_buffer_t uart_input_buffer;
+forth_input_buffer_t *input_buffer;
+char word_buf[32];
+int word_buf_pos;
 
 #define def_word(name,label,flags) case __COUNTER__: \
    asm("\n"\
@@ -52,8 +49,8 @@ io_buff_t uart_fth = {.c_pos = 0, .c_top = 0, .c_size = sizeof(uart_cb), .w_pos 
 
 #define def_code_word(name,label,flags) def_word(name,label,flags);
 #define def_forth_word(name,label,flags,def) def_word(name,label,flags) do {__label__ not_eliminate; asm goto(""::::not_eliminate); _DOCOL; not_eliminate: asm (def"\n.int EXIT"); } while (0);
-#define _JZ(label) "JZ, "label" - ."
-#define _JMP(label) "JMP, "label" - ."
+#define _JZ(label) "JZ, "label" "
+#define _JMP(label) "JMP, "label" "
 
 void prims(int c) {
    asm(".set link,0");
@@ -66,7 +63,10 @@ void prims(int c) {
       def_code_word("EXIT","EXIT","0")
          IP = (int **) *RSP++;
          NEXT;
-
+      
+      def_code_word("BRK","BRK","0")
+         NEXT;
+      
       def_code_word("DUP","DUP","0")
          PUSHD;
          NEXT;
@@ -222,7 +222,7 @@ void prims(int c) {
          goto *W;
 
       def_code_word("JMP","JMP","0")
-         IP = (int **) ( (int)IP + (int ) *IP );
+         IP = (int **)(*IP);
          NEXT;
 
       def_code_word("JZ","JZ","0")
@@ -230,7 +230,7 @@ void prims(int c) {
             IP++;
          }
          else {
-            IP = (int **) ( (int)IP + (int ) *IP );
+            IP = (int **)(*IP);
          }
          POPD;
          NEXT;
@@ -293,27 +293,27 @@ void prims(int c) {
 
       // WORD read new word from readbuffer ( -- addr len )
       def_code_word("WORD","WORD","0")
-         X = rb->w_pos;
-         if ( X == 0 ) { //new word, so skip whitespaces
-            while (1) {
-               _key;
-               if ( T == 0 ) {
-                  NEXT;
-               }
-               else if ( S1 > ' ') {POPD;break;}
-               POPD;POPD;
-            }
-         }
-         do { //copy chars from char buffer into word buffer until whitespace
-            rb->w_buff[rb->w_pos++] = T;
-            POPD;
+         // skip whitespaces
+         for ( ; ; ) {
             _key;
-            if ( T == 0 ) NEXT;
+            //_key ( -- key is_key )
+            if ( T == 0 ) {
+               NEXT;
+            }
+            else if ( S1 > ' ') {POPD;break;}
+            POPD;POPD;
+         }
+         
+        word_buf_pos = 0; 
+         
+        do { //copy chars from char buffer into word buffer until whitespace
+            word_buf[word_buf_pos++] = T;
+            _key;
+            if ( T == 0  ) break;
             POPD;
          } while ( T > ' ' );
-         T = (int) rb->w_buff;PUSHD; //address of the word buffer
-         T = rb->w_pos; //word length
-         rb->w_pos = 0;
+         T = (int)word_buf;PUSHD; //address of the word buffer
+         T = word_buf_pos; //word length
          NEXT;
 
       // STRCMP compare strings ( str_addr1 len1 str_addr2 len2 -- result )     
@@ -341,7 +341,7 @@ void prims(int c) {
 
       // FIND ( str_addr len -- dict_addr )
       def_forth_word("FIND","FIND","0","\
-         .int LIT, latest\n\
+         .int LATEST\n\
          1: .int FETCH, DUP, "_JZ("2f")", TOR, DDUP, RDUP, WCMP, FROMR, SWAP, "_JZ("1b")"\n\
          2: .int MINUSROT, DDROP");
 
@@ -381,7 +381,10 @@ void prims(int c) {
 
       def_code_word("EMIT","EMIT","0")
          T = uart_write( (const void *)T, 1);        
-         //IP = *(int ***)emit;
+         NEXT;
+
+      def_code_word("NOT_A_WORD","NOT_A_WORD","0")
+         T = uart_write( (const void *)"NOT A WORD\n", 11);
          NEXT;
 
       def_code_word("TELL","TELL","0");
@@ -400,6 +403,21 @@ void prims(int c) {
          .int WORD, FIND, DUP, "_JZ("1f")" , \
          XT\n\
          1:");
+      
+      def_code_word("COMPILING","COMPILING","FL_IMMEDIATE")
+         PUSHD;
+         T = compiling;
+         NEXT;
+
+      def_code_word("HERE","HERE","")
+         PUSHD;
+         T = (int)here;
+         NEXT;
+
+      def_code_word("LATEST","LATEST","")
+         PUSHD;
+         T = (int)latest;
+         NEXT;
 
       def_code_word("[","LBRAC","FL_IMMEDIATE")
          compiling=0;
@@ -420,12 +438,15 @@ void prims(int c) {
          NEXT;
 
       def_forth_word("CREATE","CREATE","0","\
-         .int here, FETCH, LATEST, FETCH, COMMA, LATEST, STORE, \
+         .int HERE, FETCH, LATEST, FETCH, COMMA, LATEST, STORE, \
          WORD, DUP, COMMA, \
          SWAP, OVER, LATEST, FETCH, SWAP, CCOPY, \
          here, FETCH, ADD, ALIGN4, \
          here, STORE");
          
+      def_forth_word("HIDDEN","HIDDEN","0","\
+         .int LATEST, FETCH, INC, DUP, FETCH, LIT, FL_HIDDEN, XOR, SWAP, STORE, \
+         EXIT");
 
       def_forth_word(":","COLON","0","\
          .int WORD, CREATE, LIT, DOCOL, COMMA, \

@@ -8,9 +8,9 @@ typedef struct task_t {
 } task_t;
 
 typedef struct forth_input_buffer_t {
-        char start[256];
+        char chars[256];
         int unread;
-        char *write_pos;
+        char *read_pos;
 } forth_input_buffer_t;
 
 #include "docol.h"
