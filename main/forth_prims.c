@@ -10,16 +10,18 @@ extern int uart_write(const void *src, int size);
 static char digits[]="0123456789ABCDEF";
 
 #define _iskey (input_buffer->unread)
-#define _readkey *(char *)(input_buffer->read_pos++)
+#define _readkey *(char *)(input_buffer->read_pos++);input_buffer->unread -= 1
 //_key ( -- key is_key )
 #define _key do { PUSHD;T=0;if (_iskey) {T=_readkey;PUSHD;T=1;} else PUSHD; } while (0)
       
 asm(".equ FL_IMMEDIATE, 32");
 asm(".equ FL_HIDDEN, 64");
 
+extern int switch_context;
+
 int *here;
+int *latest = &switch_context;
 int compiling;
-int *latest;
 int base;
 int *key;
 int *emit;
@@ -29,7 +31,7 @@ task_t *first_task;
 task_t *task;
 
 extern forth_input_buffer_t uart_input_buffer;
-forth_input_buffer_t *input_buffer;
+forth_input_buffer_t *input_buffer = &uart_input_buffer;
 char word_buf[32];
 int word_buf_pos;
 
@@ -416,7 +418,7 @@ void prims(int c) {
 
       def_code_word("LATEST","LATEST","")
          PUSHD;
-         T = (int)latest;
+         T = (int)&latest;
          NEXT;
 
       def_code_word("[","LBRAC","FL_IMMEDIATE")

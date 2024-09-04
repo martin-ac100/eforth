@@ -23,7 +23,7 @@ void app_main() {
    xTaskCreate(&uart_read_task, "uart_read_task", READ_TASK_STACK_SIZE, NULL, 10, NULL);
    DSP=&dstack[dstack_size];
    RSP=&rstack[rstack_size];
-   here = (int *)dict;
+   here = (int*)&dict;
    IP=(int **)_start;
    NEXT;
 }
