@@ -24,8 +24,9 @@ typedef struct forth_input_buffer_t {
          asm(".align 4");\
          } while (0)
 
+extern int dstack[];
 #define NEXT do { W = *IP++; goto *W; } while (0)
-#define PUSHD *(--DSP)=T
+#define PUSHD *(--DSP)=T; if ( DSP == (int*)&dstack ) {uart_write("dstack underflow",10);}
 #define POPD T=*(DSP++)
 #define S1 *DSP
 #define S2 *(DSP+1)

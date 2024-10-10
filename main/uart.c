@@ -40,6 +40,7 @@ void uart_read_task(void * pvParameters) {
    int i = 0;
 	uart_event_t event;
    uart_write_bytes(uart_num,"uart_reader_started\r\n",21);
+   uart_input_buffer.unread = 0;
 	for (;;) {
 		if (xQueueReceive(uart_queue, (void *)&event, (TickType_t)portMAX_DELAY) && event.type == UART_DATA ) {
 			while (uart_input_buffer.unread ) {
