@@ -285,7 +285,7 @@ void prims(int c) {
          POPD;
          NEXT;
 
-      def_code_word(",","COMMA","FL_IMMEDIATE")
+      def_code_word(",","COMMA","0")
          *( (int *)here++) = T;
          POPD;
          NEXT;
@@ -484,21 +484,22 @@ void prims(int c) {
          DUP, COMMA, \
          SWAP, OVER, HERE, FETCH, SWAP, CCOPY, \
          HERE, FETCH, ADD, ALIGN4, \
-         HERE, STORE");
+         HERE, STORE, CPY_DOCOL,\
+         EXIT");
          
       def_forth_word("HIDDEN","HIDDEN","0","\
          .int LATEST, FETCH, CELL, ADD, DUP, FETCH, LIT, FL_HIDDEN, XOR, SWAP, STORE, \
          EXIT");
       
       def_forth_word("CPY_DOCOL","CPY_DOCOL","FL_HIDDEN","\
-            .int LIT, DOCOL, HERE, FETCH, LIT, docol_len, \
-            CCOPY, \
-            HERE, FETCH, LIT, docol_len, ADD, ALIGN4, \
-            HERE, STORE, \
-            EXIT");
+         .int LIT, DOCOL, HERE, FETCH, LIT, docol_len, \
+         CCOPY, \
+         HERE, FETCH, LIT, docol_len, ADD, ALIGN4, \
+         HERE, STORE, \
+         EXIT");
 
       def_forth_word(":","COLON","0","\
-         .int CREATE, CPY_DOCOL, \
+         .int CREATE, \
          HIDDEN, \
          RBRAC, \
          EXIT");
@@ -506,7 +507,11 @@ void prims(int c) {
       def_forth_word(";","SEMICOLON","FL_IMMEDIATE","\
          .int LIT, EXIT, COMMA, \
          HIDDEN, \
-         LBRAC");
+         LBRAC, EXIT");
+
+      def_forth_word("POSTPONE","POSTPONE","FL_IMMEDIATE","\
+         .int WORD, FIND, XT, COMMA, \
+         EXIT");
 
       def_forth_word("DEBUG","DEBUG","0","\
          .int BRK, DOT, \
