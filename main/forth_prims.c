@@ -484,38 +484,33 @@ void prims(int c) {
          DUP, COMMA, \
          SWAP, OVER, HERE, FETCH, SWAP, CCOPY, \
          HERE, FETCH, ADD, ALIGN4, \
-         HERE, STORE, CPY_DOCOL,\
-         EXIT");
+         HERE, STORE, CPY_DOCOL");
          
       def_forth_word("HIDDEN","HIDDEN","0","\
-         .int LATEST, FETCH, CELL, ADD, DUP, FETCH, LIT, FL_HIDDEN, XOR, SWAP, STORE, \
-         EXIT");
+         .int LATEST, FETCH, CELL, ADD, DUP, FETCH, LIT, FL_HIDDEN, XOR, SWAP, STORE");
       
       def_forth_word("CPY_DOCOL","CPY_DOCOL","FL_HIDDEN","\
          .int LIT, DOCOL, HERE, FETCH, LIT, docol_len, \
          CCOPY, \
          HERE, FETCH, LIT, docol_len, ADD, ALIGN4, \
-         HERE, STORE, \
-         EXIT");
+         HERE, STORE");
 
       def_forth_word(":","COLON","0","\
          .int CREATE, \
          HIDDEN, \
-         RBRAC, \
-         EXIT");
+         RBRAC");
 
       def_forth_word(";","SEMICOLON","FL_IMMEDIATE","\
          .int LIT, EXIT, COMMA, \
          HIDDEN, \
-         LBRAC, EXIT");
+         LBRAC");
 
       def_forth_word("POSTPONE","POSTPONE","FL_IMMEDIATE","\
-         .int WORD, FIND, XT, COMMA, \
-         EXIT");
+         .int WORD, FIND, XT, COMMA");
 
       def_forth_word("DEBUG","DEBUG","0","\
          .int BRK, DOT, \
-         BRK, EXIT");
+         BRK");
 
 
       def_code_word("switch_context","switch_context","0")

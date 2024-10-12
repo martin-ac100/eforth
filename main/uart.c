@@ -60,6 +60,9 @@ void uart_read_task(void * pvParameters) {
                      uart_input_buffer.unread = line_pos;
                      line_pos = 0;
                   }
+                  else if ( data[i] == 0x08 ) {
+                     line_pos -= 2;
+                  }
                }
                vTaskDelay( 10 / portTICK_PERIOD_MS);
             }
