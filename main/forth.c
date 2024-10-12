@@ -16,10 +16,11 @@ int dstack[dstack_size];
 int *rstack[rstack_size];
 int dict[dict_size];
 
+
 void app_main() {
    extern const int INTERPRET;
-   extern const int link_switch_context;
    const int *_start[]={&INTERPRET};
+   extern const int link_switch_context;
 
 	ESP_ERROR_CHECK(uart_start());
    xTaskCreate(&uart_read_task, "uart_read_task", READ_TASK_STACK_SIZE, NULL, 10, NULL);
@@ -28,7 +29,7 @@ void app_main() {
    here = (int*)&dict;
    latest = (int*)&link_switch_context;
    IP=(int **)_start;
-   NEXT;
+   do { W = *IP++; goto *W; } while (0); //NEXT
 }
 
 

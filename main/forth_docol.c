@@ -3,9 +3,9 @@
 #include "docol.h"
 
 void docol(int i) {
+#include "forth_macros.s"
    switch (i) {
       case 0:
-         asm(".align 4");
          asm ("docol_start:");\
          _DOCOL;
          asm("docol_end:");\

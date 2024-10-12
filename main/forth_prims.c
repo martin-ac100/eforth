@@ -58,6 +58,7 @@ int word_buf_pos;
 #define _JMP(label) "JMP, "label" "
 
 void prims(int c) {
+#include "forth_macros.s"
    asm(".set link,0");
    switch (c) {
 
@@ -403,7 +404,7 @@ void prims(int c) {
          NEXT;
 
       def_code_word("BASE","BASE","0")
-         PUSHD
+         PUSHD;
          T = base;        
          NEXT;
 
