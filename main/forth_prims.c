@@ -41,7 +41,6 @@ int word_buf_pos;
    asm("\n"\
    ".global "label"\n"\
    ".global link_"label"\n"\
-   ".align 4\n"\
    "link_"label":\n"\
    ".int link\n"\
    ".int 2f-1f+"flags"\n"\
@@ -49,7 +48,6 @@ int word_buf_pos;
    "1:\n"\
    ".ascii \""name"\"\n"\
    "2:\n"\
-   ".align 4\n"\
    label":");
 
 #define def_code_word(name,label,flags) def_word(name,label,flags);
@@ -318,7 +316,7 @@ void prims(int c) {
             if ( T == 0  ) {POPD;break;}
             POPD;
          } while ( T > ' ' );
-         T = (int)word_buf;PUSHD; //address of the word buffer
+         T = (int)&word_buf;PUSHD; //address of the word buffer
          T = word_buf_pos; //word length
          NEXT;
 
