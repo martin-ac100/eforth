@@ -512,9 +512,7 @@ void prims(int c) {
          .int BRK, DOT, \
          BRK");
       
-      def_forth_word("PAUSE","PAUSE","0","\
-         .int LIT, 0, MS");
-
+   
        // ( ms -- )
       def_code_word("MS","MS","0") 
 
@@ -525,6 +523,10 @@ void prims(int c) {
          
          if ( task->wake_at_ms != -1 ) {
              task->wake_at_ms = X + T;
+	     if ( task->wake_at_ms != -1 ) {
+	        task->wake_at_ms = 1;
+	     }
+	     
          }
 
          W = (int *)first_task;
@@ -541,7 +543,10 @@ void prims(int c) {
             else {
                W = ((task_t*)W)>next_task;
             }
-            X = get_ms();
+            if ( W == 0) {
+		    W = (int*)first_task;
+		    X = get_ms();
+	    }
          }
          
 
