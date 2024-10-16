@@ -511,33 +511,39 @@ void prims(int c) {
       def_forth_word("DEBUG","DEBUG","0","\
          .int BRK, DOT, \
          BRK");
+      
+      def_forth_word("PAUSE","PAUSE","0","\
+         .int LIT, 0, MS");
 
+       // ( ms -- )
+      def_code_word("MS","MS","0") 
 
-      def_code_word("switch_context","switch_context","0")
-
-         int ms = get_ms();
-         PUSHD;
+         X = get_ms();
          task->dsp = DSP;
+         *(--RSP) = (int *)IP;
          task->rsp = RSP;
          
-         if (task->wake_at_ms < ms) task->wake_at_ms = ms;
+         if ( task->wake_at_ms != -1 ) {
+             task->wake_at_ms = X + T;
+         }
 
-         X = (int)first_task;
+         W = (int *)first_task;
 
          while (1) {
-            if ( ms > ((task_t *)X)->wake_at_ms || (((task_t *)X)->semaphore != 0 && ( *((task_t *)X)->semaphore != 0) ) ) {
-                task = ((task_t *)X);
+            if ( X > ((task_t *)W)->wake_at_ms || ( ((task_t *)W)->semaphore != 0 && ( *((task_t *)W)->semaphore != 0) ) ) {
+                task = ((task_t *)W);
                 DSP = task->dsp;
                 RSP = task->rsp;
-               POPD;
+                IP = (int **)*RSP++;
+                POPD;
+                NEXT;
             }
             else {
-               X = (int)((task_t*)X)->next_task;
+               W = ((task_t*)W)>next_task;
             }
+            X = get_ms();
          }
-         NEXT;
-      
+         
 
    }
 }
-
