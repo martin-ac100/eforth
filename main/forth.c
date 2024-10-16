@@ -18,7 +18,7 @@ int dict[dict_size];
 
 void app_main() {
    extern const int INTERPRET;
-   extern const int link_switch_context;
+   extern const int link_MS;
    const int *_start[]={&INTERPRET};
 
 	ESP_ERROR_CHECK(uart_start());
@@ -26,7 +26,7 @@ void app_main() {
    DSP=&dstack[dstack_size];
    RSP=&rstack[rstack_size];
    here = (int*)&dict;
-   latest = (int*)&link_switch_context;
+   latest = (int*)&link_MS;
    IP=(int **)_start;
    NEXT;
 }
