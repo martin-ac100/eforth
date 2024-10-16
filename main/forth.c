@@ -33,5 +33,5 @@ void app_main() {
 
 
 int get_ms() {
-   return esp_timer_get_time();
+   return (int32_t)esp_timer_get_time();
 }
