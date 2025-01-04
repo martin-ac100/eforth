@@ -2,20 +2,68 @@
 ------------ -------------- -----------------------------------------
 +cell_offset description    value n                                  
                                                                      
-0            wake_at_ms     sleep until ms? > n                      
-                            n == 0: task always on                   
-                            n == -1: task suspended                  
+0            wake_at        IF ms? >= n THEN semaphore check ELSE next_task                      
+ 
+1            *semaphore     n == 0: no semaphore used -> activate this task               
+                            n != 0: IF *n == 0 THEN next_task ELSE activate this task
+
+2            *next_task      addr of the next task, 0 = this is the last task in the list
                                                                      
-1            semaphore addr n == 0: no semaphore used                
-                            n > 0: if @n == 0 then wait else activate
-                                                                     
-2            priority       lower means higher priority              
-                                                                     
-3            next_task      addr of the next task                    
+3            priority       lower means higher priority              
                                                                      
 4            DSP            data stack pointer                       
                                                                      
 5            RSP            return stack pointer                     
                                                                      
+------------ -------------- -----------------------------------------
 
+
+switch_task ( n -- ) // n = suspend current task for n ms
+
+	// compute new wake_at_ms field for the current task
+		get actual ms?
+		task->wake_at = ms? + n
+	
+	// save context
+		PUSHR IP
+		task->RSP = RSP
+		task->DSP = DSP // we are not saving TOS as TOS is consumed by switch_task WORD 
+
+	// find task to switch to
+
+		// start from the first task
+			get actual ms?
+			task = first_task
+			first_wake_at = task->wake_at
+
+		// loop_thru_tasks
+			// check wake_at_ms
+				IF ms? >= task->wake_at THEN semaphore_check
+					ELSE next_task
+
+			// check semaphore
+				IF task->semaphore == 0 OR *task->semaphore != 0 THEN load_context
+					ELSE next_task
+
+			// next_task
+				// find the task which needs to be activated in the shortert time
+				IF task->wake_at < first_wake_at THEN first_wake_at = task->wake_at
+
+				// is this the last task in list? if so, we can suspend the FORTH system
+					IF task->next_task == 0 THEN
+						sleep(wake_at - ms?)
+						start from the first task
+					ELSE
+						task = task->next_task
+						loop_thru_tasks
+					
+		// load_context
+			
+			DSP = task->DSP
+			POP TOS
+			
+			RSP = task->RSP
+			POPR IP
+
+			NEXT
 
