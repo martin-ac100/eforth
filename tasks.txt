@@ -1,4 +1,4 @@
- tasks                                                                
+ task structure stored in dictionary (e.g. in the data field area of the task dictionary entry)                                                            
 ------------ -------------- -----------------------------------------
 +cell_offset description    value n                                  
                                                                      
@@ -16,6 +16,9 @@
 5            RSP            return stack pointer                     
                                                                      
 ------------ -------------- -----------------------------------------
+
+(cell *)first_task //pointer to the top of the sorted task list
+(cell *)task //current running task
 
 
 switch_task ( n -- ) // n = suspend current task for n ms
@@ -67,3 +70,18 @@ switch_task ( n -- ) // n = suspend current task for n ms
 
 			NEXT
 
+
+add_task ( n -- ) // add new task to scheduler's list, n is a address of task structure. Task is inserted to the task list sorted by priorities (lowest first)
+   POP (cell *)new_task
+   IF new_task->priority <= first_task->priority THEN
+      new_task->next_task = *first_task
+      first_task = new_task
+   
+   ELSE
+      t = (cell *)first_task
+      WHILE (t->next_task != 0) AND (t->next_task->priority < new_task->priority)
+            t = t->next
+
+      new_task->next_task = t->next_task
+      t->next_task = new_task
+   NEXT
