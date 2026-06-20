@@ -1,4 +1,7 @@
- task structure stored in dictionary (e.g. in the data field area of the task dictionary entry)                                                            
+
+: create_task variable 3 cells allot here @ dup 34 + ,  50 + , 32 cells allot 16 cells allot ;
+
+task structure stored in the dictionary (e.g. in the data field area of the task dictionary entry)                                                            
 ------------ -------------- -----------------------------------------
 +cell_offset description    value n                                  
                                                                      
@@ -13,8 +16,11 @@
                                                                      
 4            DSP            data stack pointer                       
                                                                      
-5            RSP            return stack pointer                     
-                                                                     
+5            RSP            return stack pointer
+
+6            DS bottom (32 cells)
+
+38           RS bottom (16 cells)
 ------------ -------------- -----------------------------------------
 
 (cell *)first_task //pointer to the top of the sorted task list
@@ -24,22 +30,22 @@
 switch_task ( n -- ) // n = suspend current task for n ms
 
 	// compute new wake_at_ms field for the current task
-		get actual ms?
+		ms? // get actuals ms
 		task->wake_at = ms? + n
 	
 	// save context
 		PUSHR IP
 		task->RSP = RSP
-		task->DSP = DSP // we are not saving TOS as TOS is consumed by switch_task WORD 
+		task->DSP = DSP + 1 // we are not saving TOS as TOS is consumed by switch_task WORD, only DSP is decremented while TOS is consumed 
 
 	// find task to switch to
 
-		// start from the first task
-			get actual ms?
+		start_from_the_first_task:
+         ms? // get actuals ms
 			task = first_task
 			first_wake_at = task->wake_at
 
-		// loop_thru_tasks
+		loop_thru_tasks:
 			// check wake_at_ms
 				IF ms? >= task->wake_at THEN semaphore_check
 					ELSE next_task
@@ -48,19 +54,19 @@ switch_task ( n -- ) // n = suspend current task for n ms
 				IF task->semaphore == 0 OR *task->semaphore != 0 THEN load_context
 					ELSE next_task
 
-			// next_task
+			next_task:
 				// find the task which needs to be activated in the shortert time
 				IF task->wake_at < first_wake_at THEN first_wake_at = task->wake_at
 
 				// is this the last task in list? if so, we can suspend the FORTH system
 					IF task->next_task == 0 THEN
-						sleep(wake_at - ms?)
-						start from the first task
+						sleep(first_wake_at - ms?)
+						start_from_the_first_task
 					ELSE
 						task = task->next_task
 						loop_thru_tasks
 					
-		// load_context
+      load_context:
 			
 			DSP = task->DSP
 			POP TOS
